@@ -73,7 +73,7 @@
             background: #fff;
             color: #764ba2;
         }
-        .btn-save {
+        .btn-small {
             background: rgba(255, 255, 255, 0.25);
             color: #fff;
             font-size: 0.85rem;
@@ -118,8 +118,9 @@
 
         <div class="controls">
             <div class="token-row">
-                <input type="password" id="token" placeholder="GitHub personal access token">
-                <button class="btn-save" onclick="saveToken()">Save</button>
+                <input type="password" id="token" placeholder="GitHub personal access token (classic)">
+                <button class="btn-small" onclick="saveToken()">Save</button>
+                <button class="btn-small" onclick="testToken()">Test</button>
             </div>
             <div id="token-status" class="token-status"></div>
             <button id="generate-btn" class="btn-generate" onclick="generate()">Generate Greeting</button>
@@ -128,8 +129,8 @@
         <div id="error" class="error"></div>
 
         <p class="help">
-            Requires a <a href="https://github.com/settings/tokens?type=beta">fine-grained PAT</a>
-            or <a href="https://github.com/settings/tokens">classic token</a>.<br>
+            Requires a <a href="https://github.com/settings/tokens">classic PAT</a>
+            (fine-grained tokens may not work yet).<br>
             You must first <a href="https://github.com/marketplace/models">visit GitHub Models</a>
             and accept the terms to enable access.
         </p>
@@ -167,6 +168,57 @@
             }
             localStorage.setItem("gh_token", token);
             tokenStatus.textContent = "Token saved to local storage.";
+        }
+
+        async function testToken() {
+            const token = tokenInput.value.trim();
+            if (!token) {
+                tokenStatus.textContent = "Enter a token first.";
+                return;
+            }
+            tokenStatus.textContent = "Testing token...";
+            errorEl.textContent = "";
+
+            // Step 1: Verify the token is a valid GitHub PAT
+            try {
+                const ghRes = await fetch("https://api.github.com/user", {
+                    headers: { "Authorization": "Bearer " + token },
+                });
+                if (!ghRes.ok) {
+                    tokenStatus.textContent = "Invalid GitHub token — check it and try again.";
+                    return;
+                }
+                const user = await ghRes.json();
+                tokenStatus.textContent = "GitHub token valid (user: " + user.login + "). Testing Models access...";
+            } catch {
+                tokenStatus.textContent = "Could not reach GitHub API — check your network.";
+                return;
+            }
+
+            // Step 2: Test against the Models endpoint with a tiny request
+            try {
+                const modelsRes = await fetch(ENDPOINT, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + token,
+                    },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: [{ role: "user", content: "hi" }],
+                        max_tokens: 1,
+                    }),
+                });
+                if (modelsRes.ok) {
+                    tokenStatus.textContent = "All good! Token works with GitHub Models.";
+                } else {
+                    const body = await modelsRes.text();
+                    tokenStatus.textContent = "GitHub token is valid, but Models returned " + modelsRes.status + ".";
+                    errorEl.textContent = "Models API: " + body;
+                }
+            } catch {
+                tokenStatus.textContent = "GitHub token is valid, but could not reach the Models endpoint (CORS or network issue).";
+            }
         }
 
         async function generate() {
