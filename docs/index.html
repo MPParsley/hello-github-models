@@ -94,7 +94,15 @@
             color: #ffb3b3;
             font-size: 0.9rem;
             margin-top: 0.5rem;
+            word-break: break-word;
         }
+        .help {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+        .help a { text-decoration: underline; }
         @keyframes pulse {
             0%, 100% { opacity: 0.6; }
             50% { opacity: 1; }
@@ -118,6 +126,13 @@
         </div>
 
         <div id="error" class="error"></div>
+
+        <p class="help">
+            Requires a <a href="https://github.com/settings/tokens?type=beta">fine-grained PAT</a>
+            or <a href="https://github.com/settings/tokens">classic token</a>.<br>
+            You must first <a href="https://github.com/marketplace/models">visit GitHub Models</a>
+            and accept the terms to enable access.
+        </p>
 
         <p class="meta">
             Powered by <a href="https://github.com/marketplace/models">GitHub Models</a>
@@ -187,7 +202,18 @@
                 if (!res.ok) {
                     const body = await res.text();
                     if (res.status === 401) {
-                        throw new Error("Invalid token. Make sure your GitHub PAT has access to GitHub Models.");
+                        throw new Error(
+                            "Auth failed (401). Ensure your token is valid and you've accepted " +
+                            "the GitHub Models terms at github.com/marketplace/models. " +
+                            "Details: " + body
+                        );
+                    }
+                    if (res.status === 403) {
+                        throw new Error(
+                            "Access denied (403). Your token may lack Models access, " +
+                            "or you may need to accept the GitHub Models terms first. " +
+                            "Details: " + body
+                        );
                     }
                     throw new Error("API error " + res.status + ": " + body);
                 }
@@ -199,7 +225,14 @@
                 timestampEl.textContent = "Generated live at " + new Date().toLocaleString();
             } catch (err) {
                 greetingEl.textContent = "Something went wrong.";
-                errorEl.textContent = err.message;
+                if (err instanceof TypeError) {
+                    errorEl.textContent =
+                        "Network error — the request was blocked. " +
+                        "This may be a CORS issue or a connectivity problem. " +
+                        "Try the CLI instead: python hello_models.py";
+                } else {
+                    errorEl.textContent = err.message;
+                }
             } finally {
                 greetingEl.classList.remove("loading");
                 generateBtn.disabled = false;
